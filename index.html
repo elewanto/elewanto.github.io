@@ -1,0 +1,260 @@
+<!doctype html>
+<html>
+	<head>
+		<title>Lewantowicz CSE 5542 Project2</title>
+		<meta charset="utf-8">
+		<!-- dependent .js files -->
+		<script type="text/javascript" src="shaders_setup.js"></script>		
+		<script type="text/javascript" src="project_index.js"></script>  	<!-- main javascript program -->
+		<script type="text/javascript" src="jquery-3.1.1.js"></script> <!-- jquery library -->
+		<script type="text/javascript" src="glMatrix-0.9.5.min_1.js"></script> <!-- matrix transformation API -->
+		<script type="text/javascript" src="js/bootstrap.min.js"></script> <!-- bootstrap library -->
+		<script type="text/javascript" src="howler.min.js"></script>
+		<script type="text/javascript" src="webgl-obj-loader.js"></script> <!-- loads .obj model files -->
+		<!-- CSS files -->
+		<link href="css/bootstrap.min.css" rel="stylesheet"> <!-- bootstrap css file -->
+		<link rel="stylesheet" type="text/css" href="project.css">  	<!-- css file -->
+
+		<!-- Fragment Shader code provided by instructor from code05.html-->
+		<!--  ************** Fragment Shader ************* --> 
+		<script id="shader-fragment" type="x-shader/x-fragment">
+			precision mediump float;			// instruct GPU to use medium precision when calculating floats
+			precision mediump int;
+
+    		uniform mat4 uMMatrix;				// model matrix
+    		uniform mat4 uVMatrix;				// view matrix
+    		uniform mat4 uMVMatrix;				// model view matrix
+    		uniform mat4 uPMatrix;				// perspective matrix
+    		uniform mat4 uNMatrix;				// normals matrix
+    		uniform mat4 uV2WMatrix;			// eyespace to world space matrix (for cubemap textures)			
+
+    		uniform vec4 light_ambient;			// Ia
+    		uniform vec4 light_diffuse;			// Id
+    		uniform vec4 light_specular;		// Is
+    		uniform vec4 light_pos;				// light position; passed in world space
+    		uniform vec4 colorOffset;			// object coloring for environment cubemapped objects
+
+    		uniform vec4 ambient_coef;			// Ka
+    		uniform vec4 diffuse_coef;			// Kd
+    		uniform vec4 specular_coef;			// Ks
+    		uniform float mat_shininess;		// n decay exponent 
+
+    		uniform sampler2D objectTexture;
+    		uniform samplerCube cubeMap;
+    		uniform int useTexture;    		   		
+
+    		varying vec4 eye_pos;				// p: object point in eyespace
+    		varying vec3 v_normal;				// object point normal
+    		//varying vec4 light_pos_in_eye;    	// light position in eye space	
+    		varying highp vec2 FtexCoord;
+    		varying vec2 texCoords;    		
+
+			void main(void) {
+
+    			// transform light position from worldspace to eyespace
+    			vec4 light_pos_in_eye = uVMatrix * light_pos;					// worldspace to eyespace
+    			// ambient: Ia * Ka
+    			vec4 ambient = ambient_coef * light_ambient;  
+    			// l: transform light position from local to eyespace
+    			//vec4 light_pos_in_eye = vlight_pos;
+    			// L vector: light position - vertex position (both in eyespace)
+    			vec3 light_vector = normalize(vec3(light_pos_in_eye - eye_pos));
+    			// V vector: eye position - vertex position (eye/camera position is (0, 0, 0) in eyespace) 
+    			vec3 eye_vector = normalize(-vec3(eye_pos));
+    			// vec3 eye_vector = normalize(vec3(vec4(0,0,0,1) - eye_pos));		// TODO: alternate calculation
+  			
+    			// N.L (dot product); needs to be minimum of 0
+    			float ndotl = max(dot(v_normal, light_vector), 0.0);
+    			// diffuse: N.L * Id * Kd 
+    			vec4 diffuse = diffuse_coef * light_diffuse * ndotl;
+    			// R: 2(N.L)N - L
+    			vec3 R = normalize(2.0 * ndotl * v_normal - light_vector);
+    			// R.V; needs to be minimum of 0
+    			float rdotv = max(dot(R, eye_vector), 0.0);
+    			// (R.V)^n
+    			rdotv = pow(rdotv, mat_shininess);
+    			vec4 specular;
+    			if (ndotl > 0.0) {
+    				// specular: Is * Ks * (R.V)^n
+    				specular = specular_coef * light_specular * rdotv;
+    			} else {
+    				specular = vec4(0, 0, 0, 1);
+    			}
+    			// process texture
+    			vec4 textureColor;
+    			vec3 refVectorCube;
+    			if (useTexture == 1) {	// object has texture, no reflection
+    				textureColor = texture2D(objectTexture, texCoords);  
+    				gl_FragColor = ((ambient + diffuse) * textureColor);
+    			} else if (useTexture == 2) { // object has texture with reflection
+    				textureColor = texture2D(objectTexture, texCoords);    				
+    				gl_FragColor = ((ambient + diffuse) * textureColor) + specular;
+    			} else if (useTexture == 3) {  // object with cubemap texture
+    				//eye_vector = normalize(vec3(vec4(0,0,0,1) - eye_pos));
+    				refVectorCube = normalize(reflect(-eye_vector, v_normal));		// eye space
+    				refVectorCube = vec3(uV2WMatrix * vec4(refVectorCube, 0));		// convert to world space from eyespace
+    				gl_FragColor = textureCube(cubeMap, refVectorCube);
+    				gl_FragColor = gl_FragColor + colorOffset;
+    			} else {			// object doesn't have texture
+      				gl_FragColor = ambient + diffuse + specular;
+      			}
+    		}
+		</script>		
+
+		<!-- Vertex Shader code provided by instructor from code05.html-->
+		<!--  ************** Vertex Shader ************* --> 
+		<script id="shader-vertex" type="x-shader/x-vertex">
+		precision mediump float;
+		precision mediump int;
+
+    		attribute vec3 aVertexPosition;		// vertex position vector (from VBO)
+    		attribute vec3 aVertexNormal;		// vertex normal (from VBO)
+    		attribute vec2 aVertexTexCoords;		// vertex texture 2-D coordinates
+
+    		uniform mat4 uMMatrix;				// model matrix
+    		uniform mat4 uVMatrix;				// view matrix
+    		uniform mat4 uMVMatrix;				// model view matrix
+    		uniform mat4 uPMatrix;				// perspective matrix
+    		uniform mat4 uNMatrix;				// normals matrix
+    		uniform mat4 uV2WMatrix;			// eyespace to world space matrix (for cubemap textures)
+
+    		uniform vec4 light_ambient;			// Ia
+    		uniform vec4 light_diffuse;			// Id
+    		uniform vec4 light_specular;		// Is
+    		uniform vec4 light_pos;				// light position; passed in world space
+    		uniform vec4 colorOffset;			// object coloring for environment cubemapped objects    		
+
+    		uniform vec4 ambient_coef;			// Ka
+    		uniform vec4 diffuse_coef;			// Kd
+    		uniform vec4 specular_coef;			// Ks
+    		uniform float mat_shininess;		// n decay exponent
+
+    		varying vec4 eye_pos;				// p in eyespace
+    		varying vec3 v_normal;				
+    		//varying vec4 light_pos_in_eye;
+    		varying highp vec2 FtexCoord;
+
+    		uniform sampler2D objectTexture;
+    		uniform samplerCube cubeMap;    		
+    		uniform int useTexture;
+    		varying vec2 texCoords;    		
+  		
+    		void main(void) {
+    			//gl_PointSize = 10.0;
+
+    			if (useTexture != 0) {
+    				texCoords = aVertexTexCoords;
+    			}
+    			// transform light position from worldspace to eyespace
+    			//light_pos_in_eye = uVMatrix * light_pos;					// worldspace to eyespace
+    			// p: transform vertex position to eyespace for lighting 
+    			eye_pos = uVMatrix * uMMatrix * vec4(aVertexPosition, 1.0);
+    			if (useTexture == 3) {
+
+    			}
+				// N vector: transform vertex normal from local to eyespace using normal matrix (inverse transpose of modelview matrix)
+    			v_normal = normalize(vec3(uNMatrix * vec4(aVertexNormal, 0.0)));      			
+    			// cast aVertexPosition to vec4 from vec3 and multiply by modelview and projection matrices
+      			gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+    		}
+		</script>
+
+	</head>
+
+	<body onload="webGLStart();">						<!-- call js function to launch webGL -->
+		<div class="canvasdiv">
+			<canvas id="project-canvas"></canvas>			<!-- canvas attributes defined in .css file -->
+		</div>
+
+		<!-- set up buttons -->
+		<div>
+			<button id="tankCam" type="button" class="btn btn-danger btn-lg">1st Person Cam</button>
+			<button id="daySim" type="button" class="btn btn-success btn-lg">Day Simulation</button>
+			<button id="camZCW" type="button" class="btn btn-primary btn-lg">Rot Cam Z +</button>
+			<button id="camZCCW" type="button" class="btn btn-primary btn-lg">Rot Cam Z -</button>			
+			<button id="reset" type="button" class="btn btn-warning btn-lg">Reset Screen</button>
+			<button id="muteBack" type="button" class="btn btn-secondary btn-lg">Mute Sound</button>
+		</div>
+		<div>
+			<table>
+			<caption>Controls</caption>
+			<tr>
+				<th>Lighting</th>
+				<th>Key</th>
+				<th>Tank</th>
+				<th>Key</th>
+				<th>COI</th>
+				<th>Key</th>	
+				<th>Camera Rotate</th>
+				<th>Key</th>	
+				<th>Camera Move</th>
+				<th>Key</th>										
+			</tr>
+			<tr>
+				<td class="lighting">up / down</td>
+				<td class="lighting">1 / 2</td>
+
+				<td class="tank">forward / back</td>
+				<td class="tank">W / S</td>
+
+				<td class="coi">up</td>
+				<td class="coi">I</td>
+
+				<td class="camera">X-axis</td>
+				<td class="camera">mouse up/down</td>	
+
+				<td class="imp"><b>in / out</b></td>
+				<td class="imp"><b>R / Y</b></td>											
+			</tr>
+			<tr>
+				<td class="lighting">left / right</td>
+				<td class="lighting">3 / 4</td>
+
+				<td class="tank">left / right</td>
+				<td class="tank">A / D</td>
+
+				<td class="coi">down</td>
+				<td class="coi">K</td>
+
+				<td class="camera">Y-axis</td>
+				<td class="camera">mouse left/right</td>	
+
+				<td class="camera">up / down</td>
+				<td class="camera">T / G</td>											
+			</tr>		
+			<tr>
+				<td class="lighting">forward / back</td>
+				<td class="lighting">5 / 6</td>
+
+				<td class="tank">turret CCW / CW</td>
+				<td class="tank">Q / E</td>
+
+				<td class="coi">left</td>
+				<td class="coi">J</td>
+
+				<td class="camera">Z-axis</td>
+				<td class="camera">HTML buttons</td>	
+
+				<td class="camera">left / right</td>
+				<td class="camera">F / H</td>											
+			</tr>
+			<tr>
+				<td class="lighting">intensity + / -</td>
+				<td class="lighting">7 / 8</td>
+
+				<td class="tank">fire gun</td>
+				<td class="tank">Z</td>
+
+				<td class="coi">right</td>
+				<td class="coi">L</td>
+
+				<td class="camera"></td>
+				<td class="camera"></td>				
+
+				<td class="camera"></td>
+				<td class="camera"></td>
+			</tr>									
+			</table>
+		</div>
+	</body>
+</html>

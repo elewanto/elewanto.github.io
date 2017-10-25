@@ -1,0 +1,125 @@
+@charset "utf-8";
+
+body {
+  background: white;
+  text-align: center;
+  font-family: "Lato", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+h1, h2 {
+	color: blue;
+}
+
+canvas {
+	/* set canvas height, width to 80% of the smaller of the browser
+	   dimensions */
+	/*height: 90vmin;
+	width: 90vmin;*/
+	height: 90vh;
+	width: 80vw;	
+	display: block;
+	margin: auto;		/* centers display */
+}
+
+.canvasdiv {
+	padding: 5px;
+	margin: 5px;
+}
+
+.button {
+    border-radius: 8px;
+    color: black;
+    padding: 15px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    transition-duration: 0.2s;	/* for button hover */
+    cursor: pointer;
+    width: 20%;
+}
+
+.button1 {
+	background-color: white;
+    border: 4px solid #00FF00; /* green */
+}
+
+.button1:hover {
+	background-color: #00ff00;
+	color: white;
+}
+
+.button2 {
+	background-color: white;
+	border: 4px solid #0000FF; /* blue */
+}
+
+.button2:hover {
+	background-color: #0000ff;
+	color: white;
+}
+
+.button3 {
+	background-color: white;
+	border: 4px solid #FF8C00; /* orange */
+}
+
+.button3:hover {
+	background-color: #ff8c00;
+	color: white;
+}
+
+.button4 {
+	background-color: white;
+	border: 4px solid #000000; /* black */
+}
+
+.button4:hover {
+	background-color: #000000;
+	color: white;
+}
+
+.buttons {
+	clear: both;
+}
+
+table {
+	margin-top: 10px;
+	margin-bottom: 20px;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+table, th, td {
+	border: 1px solid black;
+	text-align: left;
+	padding-left: 3px;
+	padding-right: 3px;
+}
+
+caption {
+	caption-side: top;
+	color: black;
+	text-align: center;
+}
+
+.tank {
+	background-color: #c6ffcd;
+}
+
+.camera {
+	background-color: #c9d8f2;
+}
+
+.coi {
+	background-color: #f7e1bb;
+}
+
+.imp {
+	background-color: #e54756;
+}
+
+.lighting {
+	background-color: #fdffa0;
+}
